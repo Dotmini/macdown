@@ -7,7 +7,17 @@ on:
 
 jobs:
   build-and-release:
-    runs-on: macos-latest
+    strategy:
+      matrix:
+        include:
+          - os: macos-14
+            arch: arm64
+            name: "Apple Silicon"
+          - os: macos-12
+            arch: x86_64
+            name: "Intel"
+
+    runs-on: ${{ matrix.os }}
 
     steps:
     - uses: actions/checkout@v3
@@ -28,33 +38,47 @@ jobs:
     - name: Install Dependencies
       run: pod install
 
-    - name: Build MacDown Release
+    - name: Build MacDown Release (${{ matrix.name }})
       run: |
         set -o pipefail
         xcodebuild -workspace MacDown.xcworkspace \
           -scheme MacDown \
           -configuration Release \
-          -derivedDataPath build \
+          -derivedDataPath build-${{ matrix.arch }} \
           build | xcpretty
 
-    - name: Create Disk Image
+    - name: Create Disk Image (${{ matrix.name }})
       run: |
-        # Create a temporary directory for the app
-        mkdir -p dist
+        mkdir -p dist-${{ matrix.arch }}
+        cp -r build-${{ matrix.arch }}/Build/Products/Release/MacDown.app dist-${{ matrix.arch }}/MacDown.app
 
-        # Copy the built app to dist
-        cp -r build/Build/Products/Release/MacDown.app dist/MacDown.app
-
-        # Create a disk image
         hdiutil create -volname "MacDown" \
-          -srcfolder dist \
+          -srcfolder dist-${{ matrix.arch }} \
           -ov -format UDZO \
-          "MacDown-${{ github.ref_name }}.dmg"
+          "MacDown-${{ github.ref_name }}-${{ matrix.arch }}.dmg"
+
+    - name: Upload DMG as Artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: MacDown-${{ matrix.arch }}-dmg
+        path: MacDown-${{ github.ref_name }}-${{ matrix.arch }}.dmg
+
+  create-release:
+    needs: build-and-release
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Download All Artifacts
+      uses: actions/download-artifact@v3
+
+    - name: List Artifacts
+      run: find . -type f -name "*.dmg"
 
     - name: Create Release
       uses: softprops/action-gh-release@v1
       with:
-        files: MacDown-*.dmg
+        files: |
+          MacDown-*-dmg/*.dmg
         draft: false
         prerelease: ${{ contains(github.ref, 'beta') || contains(github.ref, 'alpha') }}
       env:

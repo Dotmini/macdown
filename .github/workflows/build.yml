@@ -8,7 +8,17 @@ on:
 
 jobs:
   build:
-    runs-on: macos-latest
+    strategy:
+      matrix:
+        include:
+          - os: macos-14
+            arch: arm64
+            name: "Apple Silicon"
+          - os: macos-12
+            arch: x86_64
+            name: "Intel"
+
+    runs-on: ${{ matrix.os }}
 
     steps:
     - uses: actions/checkout@v3
@@ -29,16 +39,16 @@ jobs:
     - name: Install Dependencies
       run: pod install
 
-    - name: Build MacDown
+    - name: Build MacDown (${{ matrix.name }})
       run: |
         set -o pipefail
         xcodebuild -workspace MacDown.xcworkspace \
           -scheme MacDown \
           -configuration Release \
-          -derivedDataPath build \
+          -derivedDataPath build-${{ matrix.arch }} \
           build | xcpretty
 
-    - name: Run Tests
+    - name: Run Tests (${{ matrix.name }})
       run: |
         set -o pipefail
         xcodebuild -workspace MacDown.xcworkspace \
@@ -46,10 +56,10 @@ jobs:
           -configuration Debug \
           test | xcpretty
 
-    - name: Upload Build Artifacts
+    - name: Upload Build Artifacts (${{ matrix.name }})
       if: success()
       uses: actions/upload-artifact@v3
       with:
-        name: MacDown-build
-        path: build
+        name: MacDown-${{ matrix.arch }}
+        path: build-${{ matrix.arch }}
         retention-days: 30
