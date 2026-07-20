@@ -25,7 +25,8 @@ target "MacDown" do
   pod 'LibYAML', '~> 0.1'
   pod 'M13OrderedDictionary', '~> 1.1'
   pod 'MASPreferences', '~> 1.3'
-  pod 'Sparkle', '~> 2.5', :inhibit_warnings => false
+  # Sparkle disabled: 1.18 is x86_64 only, 2.x requires macOS 10.13+
+  # TODO: Update deployment target or add arm64-compatible Sparkle build
 
   # Locked on 0.4.x until we drop 10.8.
   pod 'PAPreferences', '~> 0.4'
