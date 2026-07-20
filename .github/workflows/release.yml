@@ -48,6 +48,13 @@ jobs:
           echo "Using cached Pods"
         fi
 
+    - name: Generate pmh_parser.c
+      run: |
+        cd Dependency/peg-markdown-highlight
+        make
+        cd ../..
+        echo "✓ pmh_parser.c generated successfully"
+
     - name: Build Information
       run: |
         echo "============================================"
