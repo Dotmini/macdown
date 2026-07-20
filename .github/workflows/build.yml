@@ -31,13 +31,13 @@ jobs:
         ruby-version: '3.0'
         bundler-cache: true
 
-    - name: Install CocoaPods
+    - name: Install CocoaPods and xcpretty
       run: |
-        gem install cocoapods
+        sudo gem install cocoapods xcpretty
         pod repo update
 
     - name: Install Dependencies
-      run: pod install
+      run: pod install --repo-update
 
     - name: Build MacDown (${{ matrix.name }})
       run: |
@@ -47,7 +47,14 @@ jobs:
           -configuration Release \
           -derivedDataPath build-${{ matrix.arch }} \
           ARCHS=${{ matrix.arch }} \
-          build | xcpretty
+          VALID_ARCHS=${{ matrix.arch }} \
+          build 2>&1 | xcpretty || xcodebuild -workspace MacDown.xcworkspace \
+          -scheme MacDown \
+          -configuration Release \
+          -derivedDataPath build-${{ matrix.arch }} \
+          ARCHS=${{ matrix.arch }} \
+          VALID_ARCHS=${{ matrix.arch }} \
+          build
 
     - name: Run Tests (${{ matrix.name }})
       run: |
@@ -55,7 +62,10 @@ jobs:
         xcodebuild -workspace MacDown.xcworkspace \
           -scheme MacDown \
           -configuration Debug \
-          test | xcpretty
+          test 2>&1 | xcpretty || xcodebuild -workspace MacDown.xcworkspace \
+          -scheme MacDown \
+          -configuration Debug \
+          test
 
     - name: Upload Build Artifacts (${{ matrix.name }})
       if: success()
