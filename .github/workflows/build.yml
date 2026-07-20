@@ -18,25 +18,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
-    strategy:
-      matrix:
-        include:
-          - os: macos-14
-            arch: arm64
-            name: "Apple Silicon"
-          - os: macos-13
-            arch: x86_64
-            name: "Intel"
-            skip_on_push: true
-
+  build-apple-silicon:
     timeout-minutes: 60
-    runs-on: ${{ matrix.os }}
-    # Skip Intel builds on push unless explicitly requested
-    if: |
-      !matrix.skip_on_push ||
-      github.event_name == 'pull_request' ||
-      github.event_name == 'workflow_dispatch' && github.event.inputs.build_intel == 'true'
+    runs-on: macos-14
+    name: "Build Apple Silicon"
 
     steps:
     - uses: actions/checkout@v4
@@ -73,29 +58,29 @@ jobs:
     - name: Build Information
       run: |
         echo "============================================"
-        echo "Building: ${{ matrix.name }} (${{ matrix.arch }})"
-        echo "Runner: ${{ matrix.os }}"
+        echo "Building: Apple Silicon (arm64)"
+        echo "Runner: macos-14"
         echo "Event: ${{ github.event_name }}"
         echo "============================================"
 
-    - name: Build MacDown (${{ matrix.name }})
+    - name: Build MacDown (Apple Silicon)
       run: |
         set -o pipefail
         xcodebuild -workspace MacDown.xcworkspace \
           -scheme MacDown \
           -configuration Release \
-          -derivedDataPath build-${{ matrix.arch }} \
-          ARCHS=${{ matrix.arch }} \
-          VALID_ARCHS=${{ matrix.arch }} \
+          -derivedDataPath build-arm64 \
+          ARCHS=arm64 \
+          VALID_ARCHS=arm64 \
           build 2>&1 | xcpretty || xcodebuild -workspace MacDown.xcworkspace \
           -scheme MacDown \
           -configuration Release \
-          -derivedDataPath build-${{ matrix.arch }} \
-          ARCHS=${{ matrix.arch }} \
-          VALID_ARCHS=${{ matrix.arch }} \
+          -derivedDataPath build-arm64 \
+          ARCHS=arm64 \
+          VALID_ARCHS=arm64 \
           build
 
-    - name: Run Tests (${{ matrix.name }})
+    - name: Run Tests (Apple Silicon)
       run: |
         set -o pipefail
         xcodebuild -workspace MacDown.xcworkspace \
@@ -106,10 +91,95 @@ jobs:
           -configuration Debug \
           test
 
-    - name: Upload Build Artifacts (${{ matrix.name }})
+    - name: Upload Build Artifacts (Apple Silicon)
       if: success()
       uses: actions/upload-artifact@v4
       with:
-        name: MacDown-${{ matrix.arch }}
-        path: build-${{ matrix.arch }}
+        name: MacDown-arm64
+        path: build-arm64
+        retention-days: 30
+
+  build-intel:
+    timeout-minutes: 60
+    runs-on: macos-13
+    name: "Build Intel"
+    # Only run on PR or manual trigger with flag
+    if: |
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.build_intel == 'true')
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Setup Ruby
+      uses: ruby/setup-ruby@v1
+      with:
+        ruby-version: '3.0'
+        bundler-cache: true
+
+    - name: Cache CocoaPods
+      uses: actions/cache@v3
+      with:
+        path: Pods
+        key: ${{ runner.os }}-pods-${{ hashFiles('**/Podfile.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-pods-
+
+    - name: Install CocoaPods and xcpretty
+      run: |
+        gem install cocoapods xcpretty
+        pod repo update --silent
+
+    - name: Install Dependencies
+      run: |
+        if [ ! -d "Pods" ]; then
+          pod install --repo-update
+        else
+          echo "Using cached Pods"
+        fi
+
+    - name: Build Information
+      run: |
+        echo "============================================"
+        echo "Building: Intel (x86_64)"
+        echo "Runner: macos-13"
+        echo "Event: ${{ github.event_name }}"
+        echo "============================================"
+
+    - name: Build MacDown (Intel)
+      run: |
+        set -o pipefail
+        xcodebuild -workspace MacDown.xcworkspace \
+          -scheme MacDown \
+          -configuration Release \
+          -derivedDataPath build-x86_64 \
+          ARCHS=x86_64 \
+          VALID_ARCHS=x86_64 \
+          build 2>&1 | xcpretty || xcodebuild -workspace MacDown.xcworkspace \
+          -scheme MacDown \
+          -configuration Release \
+          -derivedDataPath build-x86_64 \
+          ARCHS=x86_64 \
+          VALID_ARCHS=x86_64 \
+          build
+
+    - name: Run Tests (Intel)
+      run: |
+        set -o pipefail
+        xcodebuild -workspace MacDown.xcworkspace \
+          -scheme MacDown \
+          -configuration Debug \
+          test 2>&1 | xcpretty || xcodebuild -workspace MacDown.xcworkspace \
+          -scheme MacDown \
+          -configuration Debug \
+          test
+
+    - name: Upload Build Artifacts (Intel)
+      if: success()
+      uses: actions/upload-artifact@v4
+      with:
+        name: MacDown-x86_64
+        path: build-x86_64
         retention-days: 30
