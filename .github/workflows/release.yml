@@ -55,21 +55,50 @@ jobs:
           VALID_ARCHS=${{ matrix.arch }} \
           build
 
+    - name: Locate Built App (${{ matrix.name }})
+      run: |
+        echo "Looking for MacDown.app in build directory..."
+        find build-${{ matrix.arch }} -name "MacDown.app" -type d
+        ls -la build-${{ matrix.arch }}/Build/Products/Release/ || echo "Release directory not found"
+
     - name: Create Disk Image (${{ matrix.name }})
       run: |
-        mkdir -p dist-${{ matrix.arch }}
-        cp -r build-${{ matrix.arch }}/Build/Products/Release/MacDown.app dist-${{ matrix.arch }}/MacDown.app
+        set -e
+        APP_PATH="build-${{ matrix.arch }}/Build/Products/Release/MacDown.app"
 
-        hdiutil create -volname "MacDown" \
+        if [ ! -d "$APP_PATH" ]; then
+          echo "ERROR: MacDown.app not found at $APP_PATH"
+          find build-${{ matrix.arch }} -name "MacDown.app" -type d
+          exit 1
+        fi
+
+        mkdir -p dist-${{ matrix.arch }}
+        cp -r "$APP_PATH" dist-${{ matrix.arch }}/MacDown.app
+
+        DMG_NAME="MacDown-${{ github.ref_name }}-${{ matrix.arch }}.dmg"
+        echo "Creating $DMG_NAME..."
+
+        hdiutil create -volname "MacDown-${{ matrix.arch }}" \
           -srcfolder dist-${{ matrix.arch }} \
           -ov -format UDZO \
-          "MacDown-${{ github.ref_name }}-${{ matrix.arch }}.dmg"
+          "$DMG_NAME"
+
+        if [ -f "$DMG_NAME" ]; then
+          ls -lh "$DMG_NAME"
+          echo "✓ DMG created successfully"
+        else
+          echo "ERROR: Failed to create DMG"
+          exit 1
+        fi
 
     - name: Upload DMG as Artifact
+      if: success()
       uses: actions/upload-artifact@v4
       with:
         name: MacDown-${{ matrix.arch }}-dmg
         path: MacDown-${{ github.ref_name }}-${{ matrix.arch }}.dmg
+        if-no-files-found: error
+        retention-days: 30
 
   create-release:
     needs: build-and-release
@@ -79,15 +108,48 @@ jobs:
     - name: Download All Artifacts
       uses: actions/download-artifact@v4
 
-    - name: List Artifacts
-      run: find . -type f -name "*.dmg"
+    - name: List Downloaded Artifacts
+      run: |
+        echo "=== Downloaded artifacts ==="
+        find . -type f -name "*.dmg"
+        ls -lh */
+        echo ""
+        echo "=== DMG files found ==="
+        find . -type f -name "*.dmg" | while read dmg; do
+          ls -lh "$dmg"
+        done
+
+    - name: Organize DMG Files
+      run: |
+        mkdir -p release
+        find . -type f -name "*.dmg" -exec cp {} release/ \;
+        ls -lh release/
+        echo ""
+        echo "=== Files to be released ==="
+        ls -1 release/
 
     - name: Create Release
       uses: softprops/action-gh-release@v1
       with:
-        files: |
-          MacDown-*-dmg/*.dmg
+        files: release/*.dmg
         draft: false
         prerelease: ${{ contains(github.ref, 'beta') || contains(github.ref, 'alpha') }}
+        body: |
+          MacDown Release ${{ github.ref_name }}
+
+          ## Downloads
+
+          - **MacDown-${{ github.ref_name }}-arm64.dmg** - Apple Silicon (M1/M2/M3)
+          - **MacDown-${{ github.ref_name }}-x86_64.dmg** - Intel Mac
+
+          Choose the version matching your Mac architecture.
+
+          ### System Requirements
+          - macOS 10.8 or later
+          - For RMarkdown: R and Rscript installed
+          - For LaTeX: pdflatex (MacTeX or TeX Live)
+
+          ### What's New
+          See CHANGELOG.md for details.
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
