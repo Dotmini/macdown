@@ -49,7 +49,7 @@ jobs:
 
     - name: Install Dependencies
       run: |
-        if [ ! -d "Pods" ]; then
+        if [ ! -d "Pods" ] || [ ! -f "Pods/Manifest.lock" ] || ! cmp -s "Podfile.lock" "Pods/Manifest.lock"; then
           pod install --repo-update
         else
           echo "Using cached Pods"
@@ -134,7 +134,7 @@ jobs:
 
     - name: Install Dependencies
       run: |
-        if [ ! -d "Pods" ]; then
+        if [ ! -d "Pods" ] || [ ! -f "Pods/Manifest.lock" ] || ! cmp -s "Podfile.lock" "Pods/Manifest.lock"; then
           pod install --repo-update
         else
           echo "Using cached Pods"
