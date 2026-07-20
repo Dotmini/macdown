@@ -10,19 +10,10 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build-and-release:
-    strategy:
-      matrix:
-        include:
-          - os: macos-14
-            arch: arm64
-            name: "Apple Silicon"
-          - os: macos-13  # Changed from macos-12 (faster, more available)
-            arch: x86_64
-            name: "Intel"
-
+  build-apple-silicon:
     timeout-minutes: 90
-    runs-on: ${{ matrix.os }}
+    runs-on: macos-14
+    name: "Release - Apple Silicon"
 
     steps:
     - uses: actions/checkout@v4
@@ -59,53 +50,46 @@ jobs:
     - name: Build Information
       run: |
         echo "============================================"
-        echo "Building Release: ${{ matrix.name }} (${{ matrix.arch }})"
-        echo "Runner: ${{ matrix.os }}"
+        echo "Building Release: Apple Silicon (arm64)"
+        echo "Runner: macos-14"
         echo "Version: ${{ github.ref_name }}"
         echo "============================================"
 
-    - name: Build MacDown Release (${{ matrix.name }})
+    - name: Build MacDown Release (Apple Silicon)
       run: |
-        set -o pipefail
         xcodebuild -workspace MacDown.xcworkspace \
           -scheme MacDown \
           -configuration Release \
-          -derivedDataPath build-${{ matrix.arch }} \
-          ARCHS=${{ matrix.arch }} \
-          VALID_ARCHS=${{ matrix.arch }} \
-          build 2>&1 | xcpretty || xcodebuild -workspace MacDown.xcworkspace \
-          -scheme MacDown \
-          -configuration Release \
-          -derivedDataPath build-${{ matrix.arch }} \
-          ARCHS=${{ matrix.arch }} \
-          VALID_ARCHS=${{ matrix.arch }} \
-          build
+          -derivedDataPath build-arm64 \
+          ARCHS=arm64 \
+          VALID_ARCHS=arm64 \
+          build | xcpretty
 
-    - name: Locate Built App (${{ matrix.name }})
+    - name: Locate Built App (Apple Silicon)
       run: |
         echo "Looking for MacDown.app in build directory..."
-        find build-${{ matrix.arch }} -name "MacDown.app" -type d
-        ls -la build-${{ matrix.arch }}/Build/Products/Release/ || echo "Release directory not found"
+        find build-arm64 -name "MacDown.app" -type d
+        ls -la build-arm64/Build/Products/Release/ || echo "Release directory not found"
 
-    - name: Create Disk Image (${{ matrix.name }})
+    - name: Create Disk Image (Apple Silicon)
       run: |
         set -e
-        APP_PATH="build-${{ matrix.arch }}/Build/Products/Release/MacDown.app"
+        APP_PATH="build-arm64/Build/Products/Release/MacDown.app"
 
         if [ ! -d "$APP_PATH" ]; then
           echo "ERROR: MacDown.app not found at $APP_PATH"
-          find build-${{ matrix.arch }} -name "MacDown.app" -type d
+          find build-arm64 -name "MacDown.app" -type d
           exit 1
         fi
 
-        mkdir -p dist-${{ matrix.arch }}
-        cp -r "$APP_PATH" dist-${{ matrix.arch }}/MacDown.app
+        mkdir -p dist-arm64
+        cp -r "$APP_PATH" dist-arm64/MacDown.app
 
-        DMG_NAME="MacDown-${{ github.ref_name }}-${{ matrix.arch }}.dmg"
+        DMG_NAME="MacDown-${{ github.ref_name }}-arm64.dmg"
         echo "Creating $DMG_NAME..."
 
-        hdiutil create -volname "MacDown-${{ matrix.arch }}" \
-          -srcfolder dist-${{ matrix.arch }} \
+        hdiutil create -volname "MacDown-arm64" \
+          -srcfolder dist-arm64 \
           -ov -format UDZO \
           "$DMG_NAME"
 
@@ -121,43 +105,15 @@ jobs:
       if: success()
       uses: actions/upload-artifact@v4
       with:
-        name: MacDown-${{ matrix.arch }}-dmg
-        path: MacDown-${{ github.ref_name }}-${{ matrix.arch }}.dmg
+        name: MacDown-arm64-dmg
+        path: MacDown-${{ github.ref_name }}-arm64.dmg
         if-no-files-found: error
         retention-days: 30
-
-  create-release:
-    needs: build-and-release
-    runs-on: ubuntu-latest
-
-    steps:
-    - name: Download All Artifacts
-      uses: actions/download-artifact@v4
-
-    - name: List Downloaded Artifacts
-      run: |
-        echo "=== Downloaded artifacts ==="
-        find . -type f -name "*.dmg"
-        ls -lh */
-        echo ""
-        echo "=== DMG files found ==="
-        find . -type f -name "*.dmg" | while read dmg; do
-          ls -lh "$dmg"
-        done
-
-    - name: Organize DMG Files
-      run: |
-        mkdir -p release
-        find . -type f -name "*.dmg" -exec cp {} release/ \;
-        ls -lh release/
-        echo ""
-        echo "=== Files to be released ==="
-        ls -1 release/
 
     - name: Create Release
       uses: softprops/action-gh-release@v1
       with:
-        files: release/*.dmg
+        files: MacDown-${{ github.ref_name }}-arm64.dmg
         draft: false
         prerelease: ${{ contains(github.ref, 'beta') || contains(github.ref, 'alpha') }}
         body: |
@@ -165,10 +121,7 @@ jobs:
 
           ## Downloads
 
-          - **MacDown-${{ github.ref_name }}-arm64.dmg** - Apple Silicon (M1/M2/M3)
-          - **MacDown-${{ github.ref_name }}-x86_64.dmg** - Intel Mac
-
-          Choose the version matching your Mac architecture.
+          📦 **MacDown-${{ github.ref_name }}-arm64.dmg** - Apple Silicon (M1/M2/M3/Ultra)
 
           ### System Requirements
           - macOS 10.8 or later
