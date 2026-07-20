@@ -56,6 +56,14 @@ jobs:
           echo "Using cached Pods"
         fi
 
+    - name: Build Information
+      run: |
+        echo "============================================"
+        echo "Building Release: ${{ matrix.name }} (${{ matrix.arch }})"
+        echo "Runner: ${{ matrix.os }}"
+        echo "Version: ${{ github.ref_name }}"
+        echo "============================================"
+
     - name: Build MacDown Release (${{ matrix.name }})
       run: |
         set -o pipefail

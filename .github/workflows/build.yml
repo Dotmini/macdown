@@ -5,6 +5,13 @@ on:
     branches: [ master, main, develop ]
   pull_request:
     branches: [ master, main, develop ]
+  workflow_dispatch:
+    inputs:
+      build_intel:
+        description: 'Also build Intel (x86_64)?'
+        required: false
+        default: false
+        type: boolean
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -18,12 +25,18 @@ jobs:
           - os: macos-14
             arch: arm64
             name: "Apple Silicon"
-          - os: macos-13  # Changed from macos-12 (faster, more available)
+          - os: macos-13
             arch: x86_64
             name: "Intel"
+            skip_on_push: true
 
     timeout-minutes: 60
     runs-on: ${{ matrix.os }}
+    # Skip Intel builds on push unless explicitly requested
+    if: |
+      !matrix.skip_on_push ||
+      github.event_name == 'pull_request' ||
+      github.event_name == 'workflow_dispatch' && github.event.inputs.build_intel == 'true'
 
     steps:
     - uses: actions/checkout@v4
@@ -56,6 +69,14 @@ jobs:
         else
           echo "Using cached Pods"
         fi
+
+    - name: Build Information
+      run: |
+        echo "============================================"
+        echo "Building: ${{ matrix.name }} (${{ matrix.arch }})"
+        echo "Runner: ${{ matrix.os }}"
+        echo "Event: ${{ github.event_name }}"
+        echo "============================================"
 
     - name: Build MacDown (${{ matrix.name }})
       run: |
