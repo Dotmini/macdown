@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [ master, main, develop ]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     strategy:
@@ -14,10 +18,11 @@ jobs:
           - os: macos-14
             arch: arm64
             name: "Apple Silicon"
-          - os: macos-12
+          - os: macos-13  # Changed from macos-12 (faster, more available)
             arch: x86_64
             name: "Intel"
 
+    timeout-minutes: 60
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -31,13 +36,26 @@ jobs:
         ruby-version: '3.0'
         bundler-cache: true
 
+    - name: Cache CocoaPods
+      uses: actions/cache@v3
+      with:
+        path: Pods
+        key: ${{ runner.os }}-pods-${{ hashFiles('**/Podfile.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-pods-
+
     - name: Install CocoaPods and xcpretty
       run: |
-        sudo gem install cocoapods xcpretty
-        pod repo update
+        gem install cocoapods xcpretty
+        pod repo update --silent
 
     - name: Install Dependencies
-      run: pod install --repo-update
+      run: |
+        if [ ! -d "Pods" ]; then
+          pod install --repo-update
+        else
+          echo "Using cached Pods"
+        fi
 
     - name: Build MacDown (${{ matrix.name }})
       run: |
