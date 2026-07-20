@@ -45,11 +45,7 @@ jobs:
 
     - name: Install Dependencies
       run: |
-        if [ ! -d "Pods" ]; then
-          pod install --repo-update
-        else
-          echo "Using cached Pods"
-        fi
+        pod install --repo-update
 
     - name: Generate pmh_parser.c
       run: |
