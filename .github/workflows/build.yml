@@ -65,31 +65,20 @@ jobs:
 
     - name: Build MacDown (Apple Silicon)
       run: |
-        set -o pipefail
         xcodebuild -workspace MacDown.xcworkspace \
           -scheme MacDown \
           -configuration Release \
           -derivedDataPath build-arm64 \
           ARCHS=arm64 \
           VALID_ARCHS=arm64 \
-          build 2>&1 | xcpretty || xcodebuild -workspace MacDown.xcworkspace \
-          -scheme MacDown \
-          -configuration Release \
-          -derivedDataPath build-arm64 \
-          ARCHS=arm64 \
-          VALID_ARCHS=arm64 \
-          build
+          build | xcpretty
 
     - name: Run Tests (Apple Silicon)
       run: |
-        set -o pipefail
         xcodebuild -workspace MacDown.xcworkspace \
           -scheme MacDown \
           -configuration Debug \
-          test 2>&1 | xcpretty || xcodebuild -workspace MacDown.xcworkspace \
-          -scheme MacDown \
-          -configuration Debug \
-          test
+          test | xcpretty
 
     - name: Upload Build Artifacts (Apple Silicon)
       if: success()
@@ -150,31 +139,20 @@ jobs:
 
     - name: Build MacDown (Intel)
       run: |
-        set -o pipefail
         xcodebuild -workspace MacDown.xcworkspace \
           -scheme MacDown \
           -configuration Release \
           -derivedDataPath build-x86_64 \
           ARCHS=x86_64 \
           VALID_ARCHS=x86_64 \
-          build 2>&1 | xcpretty || xcodebuild -workspace MacDown.xcworkspace \
-          -scheme MacDown \
-          -configuration Release \
-          -derivedDataPath build-x86_64 \
-          ARCHS=x86_64 \
-          VALID_ARCHS=x86_64 \
-          build
+          build | xcpretty
 
     - name: Run Tests (Intel)
       run: |
-        set -o pipefail
         xcodebuild -workspace MacDown.xcworkspace \
           -scheme MacDown \
           -configuration Debug \
-          test 2>&1 | xcpretty || xcodebuild -workspace MacDown.xcworkspace \
-          -scheme MacDown \
-          -configuration Debug \
-          test
+          test | xcpretty
 
     - name: Upload Build Artifacts (Intel)
       if: success()
