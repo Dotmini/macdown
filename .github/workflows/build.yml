@@ -6,12 +6,6 @@ on:
   pull_request:
     branches: [ master, main, develop ]
   workflow_dispatch:
-    inputs:
-      build_intel:
-        description: 'Also build Intel (x86_64)?'
-        required: false
-        default: false
-        type: boolean
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -94,86 +88,4 @@ jobs:
       with:
         name: MacDown-arm64
         path: build-arm64
-        retention-days: 30
-
-  build-intel:
-    timeout-minutes: 60
-    runs-on: macos-13
-    name: "Build Intel"
-    # Only run on PR or manual trigger with flag
-    if: |
-      github.event_name == 'pull_request' ||
-      (github.event_name == 'workflow_dispatch' && github.event.inputs.build_intel == 'true')
-
-    steps:
-    - uses: actions/checkout@v4
-      with:
-        submodules: recursive
-        fetch-depth: 0
-
-    - name: Setup Ruby
-      uses: ruby/setup-ruby@v1
-      with:
-        ruby-version: '3.0'
-        bundler-cache: true
-
-    - name: Cache CocoaPods
-      uses: actions/cache@v3
-      with:
-        path: Pods
-        key: ${{ runner.os }}-pods-${{ hashFiles('**/Podfile.lock') }}
-        restore-keys: |
-          ${{ runner.os }}-pods-
-
-    - name: Install CocoaPods and xcpretty
-      run: |
-        gem install cocoapods xcpretty
-        pod repo update --silent
-
-    - name: Install Dependencies
-      run: |
-        if [ ! -d "Pods" ] || [ ! -f "Pods/Manifest.lock" ] || ! cmp -s "Podfile.lock" "Pods/Manifest.lock"; then
-          pod install --repo-update
-        else
-          echo "Using cached Pods"
-        fi
-
-    - name: Generate pmh_parser.c
-      run: |
-        cd Dependency/peg-markdown-highlight
-        make
-        cd ../..
-        echo "✓ pmh_parser.c generated successfully"
-
-    - name: Build Information
-      run: |
-        echo "============================================"
-        echo "Building: Intel (x86_64)"
-        echo "Runner: macos-13"
-        echo "Event: ${{ github.event_name }}"
-        echo "============================================"
-
-    - name: Build MacDown (Intel)
-      run: |
-        xcodebuild -workspace MacDown.xcworkspace \
-          -scheme MacDown \
-          -configuration Release \
-          -derivedDataPath build-x86_64 \
-          ARCHS=x86_64 \
-          VALID_ARCHS=x86_64 \
-          build | xcpretty
-
-    - name: Run Tests (Intel)
-      run: |
-        xcodebuild -workspace MacDown.xcworkspace \
-          -scheme MacDown \
-          -configuration Debug \
-          test | xcpretty
-
-    - name: Upload Build Artifacts (Intel)
-      if: success()
-      uses: actions/upload-artifact@v4
-      with:
-        name: MacDown-x86_64
-        path: build-x86_64
         retention-days: 30

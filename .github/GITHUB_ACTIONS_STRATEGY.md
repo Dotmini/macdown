@@ -4,45 +4,35 @@ This document explains the optimized GitHub Actions workflows for MacDown.
 
 ## Overview
 
-MacDown uses a **smart build strategy** to balance:
-- ✅ Fast feedback during development (Apple Silicon only on push)
-- ✅ Full validation before merging (both architectures on PR)
-- ✅ Comprehensive releases (both architectures on tags)
-- ✅ Resource efficiency (minimal unnecessary builds)
+MacDown uses a **focused build strategy** optimized for Apple Silicon:
+- ✅ Fast feedback during development (Apple Silicon only)
+- ✅ Comprehensive releases with native Apple Silicon support
+- ✅ Resource efficiency (Apple Silicon ARM64 only)
+- ✅ Support for modern Macs (M1/M2/M3 and newer)
 
 ## Build Matrix Strategy
 
 ```
 Push Event
 │
-├─ Apple Silicon (arm64)  ✅ Always builds
-│  ├─ Runner: macos-14
-│  ├─ Speed: 5-10 minutes
-│  └─ Feedback: Fast (ideal for development)
-│
-└─ Intel (x86_64)  ⏭️  Skipped (save resources)
+└─ Apple Silicon (arm64)  ✅ Builds
+   ├─ Runner: macos-14
+   ├─ Speed: 5-10 minutes
+   └─ Feedback: Fast (ideal for development)
 
 Pull Request
 │
-├─ Apple Silicon (arm64)  ✅ Builds
-│  ├─ Runner: macos-14
-│  └─ Speed: 5-10 minutes
-│
-└─ Intel (x86_64)  ✅ Builds
-   ├─ Runner: macos-13
-   └─ Speed: 10-15 minutes
-   → Full validation before merge
+└─ Apple Silicon (arm64)  ✅ Builds
+   ├─ Runner: macos-14
+   └─ Speed: 5-10 minutes
 
 Release Tag (v*.*.*)
 │
-├─ Apple Silicon (arm64)  ✅ Builds
-│  ├─ Runner: macos-14
-│  └─ Creates: MacDown-v1.0.0-arm64.dmg
-│
-└─ Intel (x86_64)  ✅ Builds
-   ├─ Runner: macos-13
-   └─ Creates: MacDown-v1.0.0-x86_64.dmg
-   → Both DMGs in GitHub release
+└─ Apple Silicon (arm64)  ✅ Builds & Releases
+   ├─ Runner: macos-14
+   ├─ Speed: 10-15 minutes
+   ├─ Creates: MacDown-v1.0.0-arm64.dmg
+   └─ Ready for M1/M2/M3 users
 ```
 
 ## Scenario Examples
@@ -55,13 +45,9 @@ $ git push origin feature/new-feature
 
 **Workflow runs:**
 - ✅ Build for Apple Silicon (arm64)
+  - Runner: macos-14
   - Completes in ~5-10 minutes
   - Fast feedback on whether your changes break things
-
-**Skips:**
-- ⏭️ Intel (x86_64) build
-  - Saves time and resources
-  - Not needed for quick iteration
 
 **Best for:** Quick iteration, early feedback
 
@@ -73,11 +59,9 @@ $ gh pr create
 
 **Workflow runs:**
 - ✅ Build for Apple Silicon (arm64)
-- ✅ Build for Intel (x86_64)
-- ✅ Run tests on both architectures
-- ✅ Artifacts available in PR
-
-**Why both:** Full validation before merging ensures compatibility
+  - Runner: macos-14
+  - Completes in ~5-10 minutes
+  - Run tests and validate changes
 
 **Best for:** Quality assurance, code review
 
@@ -90,47 +74,32 @@ $ git push origin v1.0.0
 
 **Workflow runs:**
 - ✅ Build Apple Silicon
+  - Runner: macos-14
   - Creates: MacDown-v1.0.0-arm64.dmg
-- ✅ Build Intel
-  - Creates: MacDown-v1.0.0-x86_64.dmg
-- ✅ Combine artifacts
-- ✅ Create GitHub release with both DMGs
+  - Completes in ~10-15 minutes
+- ✅ Create GitHub release with DMG
+  - Ready for all Apple Silicon Mac users (M1/M2/M3/Ultra)
 
-**Result:** Users can download appropriate version
+**Result:** Users can download native Apple Silicon version
 
-**Best for:** Production releases with broad compatibility
-
-### Scenario 4: Testing Intel Build (Manual)
-
-If you need to test Intel build without creating a PR:
-
-1. Go to: **Actions → Build → Run workflow**
-2. Check: **"Also build Intel (x86_64)?"**
-3. Click: **"Run workflow"**
-
-**Result:**
-- ✅ Apple Silicon builds (always)
-- ✅ Intel builds (manually triggered)
-- ✅ Both artifacts available
-
-**Best for:** Debugging Intel-specific issues
+**Best for:** Production releases with native performance
 
 ## Build Time Comparison
 
 ```
 Scenario                     Build Time    Wait Time
 ─────────────────────────────────────────────────────
-Push (Apple Silicon only)    5-10 min      2-5 min
+Push (Apple Silicon)         5-10 min      2-5 min
                              ────────      ─────────
                              Total: 7-15 min
 
-PR (Both architectures)      5-10 + 10-15  2-5 min
-                             ──────────    ─────────
-                             Total: 17-30 min
+PR (Apple Silicon)           5-10 min      2-5 min
+                             ─────────     ─────────
+                             Total: 7-15 min
 
-Release (Both architectures) 5-10 + 10-15  2-5 min
+Release (Apple Silicon)      10-15 min     2-5 min
                              ──────────    ─────────
-                             Total: 17-30 min
+                             Total: 12-20 min
 ```
 
 ## Workflow Configuration
@@ -144,31 +113,13 @@ on:
   pull_request:
     branches: [ master, main, develop ]
   workflow_dispatch:  # Manual trigger
-    inputs:
-      build_intel:
-        description: 'Also build Intel?'
-        type: boolean
-        default: false
 
 jobs:
-  build:
-    strategy:
-      matrix:
-        include:
-          - os: macos-14
-            arch: arm64
-            name: "Apple Silicon"
-          - os: macos-13
-            arch: x86_64
-            name: "Intel"
-            skip_on_push: true  # ← Skip on push
-
-    # Conditional: Skip Intel on push events
-    if: |
-      !matrix.skip_on_push ||
-      github.event_name == 'pull_request' ||
-      github.event_name == 'workflow_dispatch' && 
-      github.event.inputs.build_intel == 'true'
+  build-apple-silicon:
+    timeout-minutes: 60
+    runs-on: macos-14
+    name: "Build Apple Silicon"
+    # Apple Silicon only, no conditionals needed
 ```
 
 ### release.yml (Tags)
@@ -180,17 +131,11 @@ on:
       - 'v*.*.*'
 
 jobs:
-  build-and-release:
-    strategy:
-      matrix:
-        include:
-          - os: macos-14
-            arch: arm64
-            name: "Apple Silicon"
-          - os: macos-13
-            arch: x86_64
-            name: "Intel"
-    # Both architectures always build for releases
+  build-apple-silicon:
+    timeout-minutes: 90
+    runs-on: macos-14
+    name: "Release - Apple Silicon"
+    # Apple Silicon only native release
 ```
 
 ## Features
@@ -238,61 +183,60 @@ Prevents jobs from hanging indefinitely.
 
 ## Resource Impact
 
-### Before (All push builds Intel + ARM)
-- 2 runners per push × 15-20 min = 30-40 min total
-- High queue time for Intel runner
-- ~1 hour total per push for developer
-
-### After (Push Apple Silicon only)
+### Current (Apple Silicon only)
 - 1 runner per push × 7-15 min = 7-15 min total
-- Fast feedback
+- Fast feedback on modern Macs
 - ~15 min total per push for developer
+- Reduced CI/CD costs
+- Native performance for all users
 
-**Savings: 50-75% faster feedback on push!**
+**Benefit: Optimized for Apple Silicon Macs (M1/M2/M3 generation and newer)**
 
 ## When Each Workflow Runs
 
 | Event | Build.yml | Release.yml | Effect |
 |-------|-----------|-------------|--------|
 | `git push` | ✅ ARM64 | — | Quick feedback |
-| Pull Request | ✅ ARM64 + x86_64 | — | Full validation |
-| `git tag v*` | — | ✅ ARM64 + x86_64 | Create release |
-| Manual trigger | ✅ ARM64 + x86_64 (optional) | — | On-demand full build |
+| Pull Request | ✅ ARM64 | — | Validation |
+| `git tag v*` | — | ✅ ARM64 | Create release |
+| Manual trigger | ✅ ARM64 | — | On-demand build |
 
 ## Troubleshooting
 
-### "Why didn't Intel build on my push?"
+### "Why is only Apple Silicon built?"
 
-✅ **Expected behavior** - Intel builds only run on PRs and releases to save resources.
+✅ **By design** - MacDown is optimized for Apple Silicon Macs (M1/M2/M3 and newer).
 
-**To build Intel:**
-1. Create a Pull Request, or
-2. Manually trigger: Actions → Build → Run workflow → Check "Also build Intel"
+**Key benefits:**
+- Native performance on modern Macs
+- Faster build times
+- Efficient CI/CD resource usage
+- No "Skipped" job confusion
 
-### "Can I build Intel without a PR?"
+### "My Mac is Intel"
 
-✅ **Yes!** Use workflow_dispatch:
-1. Go to Actions tab
-2. Select "Build" workflow
-3. Click "Run workflow"
-4. Check "Also build Intel (x86_64)?"
-5. Click "Run workflow"
+Intel Macs reach end of support in newer macOS versions. MacDown targets current-generation Macs.
+
+**Alternatives:**
+- Use an older version of MacDown built for Intel
+- Update to Apple Silicon Mac for better performance
+- Build locally: `xcodebuild -workspace MacDown.xcworkspace -scheme MacDown build`
 
 ### "Why is my push build so fast?"
 
-✅ **Apple Silicon only!** Takes 5-10 minutes instead of 20-30 for both architectures.
+✅ **Apple Silicon only!** Takes 5-10 minutes instead of 20-30 for multiple architectures.
 
 **Benefits:**
 - Faster feedback during development
-- More efficient resource usage
-- Full validation still happens on PRs
+- Modern Mac hardware optimizations
+- Clean workflow with no skipped jobs
 
 ## Best Practices
 
-1. **Development**: Push to your feature branch → Quick ARM64 build
-2. **Before Review**: Create PR → Full validation (both architectures)
-3. **Release**: Create tag → Build both, create release with both DMGs
-4. **Debugging**: Use workflow_dispatch for on-demand Intel builds
+1. **Development**: Push to your feature branch → Fast ARM64 build (5-10 min)
+2. **Code Review**: Create PR → Validation on ARM64
+3. **Release**: Create tag (v*.*.* format) → Auto-build and release native DMG
+4. **Local Testing**: Test on Apple Silicon Mac before pushing for best results
 
 ## Monitoring Builds
 
