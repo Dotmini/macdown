@@ -1,0 +1,61 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  build-and-release:
+    runs-on: macos-latest
+
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        submodules: recursive
+
+    - name: Setup Ruby
+      uses: ruby/setup-ruby@v1
+      with:
+        ruby-version: '3.0'
+        bundler-cache: true
+
+    - name: Install CocoaPods
+      run: |
+        gem install cocoapods
+        pod repo update
+
+    - name: Install Dependencies
+      run: pod install
+
+    - name: Build MacDown Release
+      run: |
+        set -o pipefail
+        xcodebuild -workspace MacDown.xcworkspace \
+          -scheme MacDown \
+          -configuration Release \
+          -derivedDataPath build \
+          build | xcpretty
+
+    - name: Create Disk Image
+      run: |
+        # Create a temporary directory for the app
+        mkdir -p dist
+
+        # Copy the built app to dist
+        cp -r build/Build/Products/Release/MacDown.app dist/MacDown.app
+
+        # Create a disk image
+        hdiutil create -volname "MacDown" \
+          -srcfolder dist \
+          -ov -format UDZO \
+          "MacDown-${{ github.ref_name }}.dmg"
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: MacDown-*.dmg
+        draft: false
+        prerelease: ${{ contains(github.ref, 'beta') || contains(github.ref, 'alpha') }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

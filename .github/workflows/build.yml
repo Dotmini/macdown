@@ -1,0 +1,55 @@
+name: Build
+
+on:
+  push:
+    branches: [ master, main, develop ]
+  pull_request:
+    branches: [ master, main, develop ]
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        submodules: recursive
+
+    - name: Setup Ruby
+      uses: ruby/setup-ruby@v1
+      with:
+        ruby-version: '3.0'
+        bundler-cache: true
+
+    - name: Install CocoaPods
+      run: |
+        gem install cocoapods
+        pod repo update
+
+    - name: Install Dependencies
+      run: pod install
+
+    - name: Build MacDown
+      run: |
+        set -o pipefail
+        xcodebuild -workspace MacDown.xcworkspace \
+          -scheme MacDown \
+          -configuration Release \
+          -derivedDataPath build \
+          build | xcpretty
+
+    - name: Run Tests
+      run: |
+        set -o pipefail
+        xcodebuild -workspace MacDown.xcworkspace \
+          -scheme MacDown \
+          -configuration Debug \
+          test | xcpretty
+
+    - name: Upload Build Artifacts
+      if: success()
+      uses: actions/upload-artifact@v3
+      with:
+        name: MacDown-build
+        path: build
+        retention-days: 30
