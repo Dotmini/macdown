@@ -7,6 +7,17 @@ project 'MacDown.xcodeproj'
 
 inhibit_all_warnings!
 
+post_install do |installer|
+  # Support both Intel and Apple Silicon architectures
+  installer.pods_project.targets.each do |target|
+    target.build_configurations.each do |config|
+      # Ensure both x86_64 and arm64 are supported
+      config.build_settings['ARCHS'] = '$(ARCHS_STANDARD)'
+      config.build_settings['VALID_ARCHS'] = 'x86_64 arm64'
+    end
+  end
+end
+
 target "MacDown" do
   pod 'handlebars-objc', '~> 1.4'
   pod 'hoedown', '~> 3.0.7', :inhibit_warnings => false

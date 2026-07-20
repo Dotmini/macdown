@@ -45,6 +45,7 @@ jobs:
           -scheme MacDown \
           -configuration Release \
           -derivedDataPath build-${{ matrix.arch }} \
+          ARCHS=${{ matrix.arch }} \
           build | xcpretty
 
     - name: Create Disk Image (${{ matrix.name }})
